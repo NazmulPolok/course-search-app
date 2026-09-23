@@ -66,11 +66,10 @@ if df is not None:
                         if st.button("Generate AI Insights & Summary"):
                             with st.spinner("AI is analyzing your exam schedule..."):
                                 try:
-                                    try:
-                                        model = genai.GenerativeModel('gemini-2.5-flash')
-                                    except Exception:
-                                        model = genai.GenerativeModel('gemini-1.5-flash-latest')
-
+                                    # Fallback list for model aliases
+                                    available_models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+                                    response = None
+                                    
                                     prompt = f"""
                                     Analyze this exam routine data for a student and provide a clear, encouraging summary in English:
                                     Data:
@@ -82,8 +81,21 @@ if df is not None:
                                     3. Highlight any tight schedules or back-to-back exams.
                                     4. A brief exam preparation tip.
                                     """
-                                    response = model.generate_content(prompt)
-                                    st.info(response.text)
+
+                                    for model_name in available_models:
+                                        try:
+                                            model = genai.GenerativeModel(model_name)
+                                            response = model.generate_content(prompt)
+                                            if response:
+                                                break
+                                        except Exception:
+                                            continue
+
+                                    if response and response.text:
+                                        st.info(response.text)
+                                    else:
+                                        st.error("Could not fetch response from Gemini API models.")
+
                                 except Exception as e:
                                     st.error(f"AI Service Error: {e}")
                 else:
