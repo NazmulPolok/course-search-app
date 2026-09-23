@@ -66,7 +66,11 @@ if df is not None:
                         if st.button("Generate AI Insights & Summary"):
                             with st.spinner("AI is analyzing your exam schedule..."):
                                 try:
-                                    model = genai.GenerativeModel('gemini-1.5-flash')
+                                    try:
+                                        model = genai.GenerativeModel('gemini-2.5-flash')
+                                    except Exception:
+                                        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+
                                     prompt = f"""
                                     Analyze this exam routine data for a student and provide a clear, encouraging summary in English:
                                     Data:
