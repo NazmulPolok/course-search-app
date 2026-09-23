@@ -81,34 +81,18 @@ if df is not None:
                                 4. A brief exam preparation tip.
                                 """
                                 
-                                # Dynamic Model Selection to prevent 404 deprecation errors
-                                target_model = None
                                 try:
-                                    available_models = [m.name for m in client.models.list()]
-                                    
-                                    # Preference order for models
-                                    for m in available_models:
-                                        if 'flash' in m.lower() and 'generateContent' in getattr(m, 'supported_generation_methods', ['generateContent']):
-                                            target_model = m
-                                            break
-                                            
-                                    if not target_model and available_models:
-                                        target_model = available_models[0]
-                                except Exception:
-                                    # Fallback candidates if list API fails
-                                    target_model = 'gemini-3.5-flash'
-
-                                try:
-                                    response = client.models.generate_content(
-                                        model=target_model,
-                                        contents=prompt,
+                                    # Using Interactions API with latest free model gemini-3.6-flash
+                                    interaction = client.interactions.create(
+                                        model="gemini-3.6-flash",
+                                        input=prompt
                                     )
-                                    if response and response.text:
-                                        st.info(response.text)
+                                    if interaction and interaction.output_text:
+                                        st.info(interaction.output_text)
                                     else:
                                         st.error("AI returned an empty response.")
                                 except Exception as err:
-                                    st.error(f"AI Service Error ({target_model}): {err}")
+                                    st.error(f"AI Service Error: {err}")
                 else:
                     st.warning("❌ No matching records found.")
         else:
