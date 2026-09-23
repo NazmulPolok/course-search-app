@@ -2,11 +2,17 @@ import streamlit as st
 import pandas as pd
 import os
 import re
+import google.generativeai as genai
 
-st.set_page_config(page_title="Course Information Search", layout="wide")
-st.title("📚 Exam Routine & Course Search App")
+st.set_page_config(page_title="AI-Powered Course Search", layout="wide")
+st.title("📚 AI-Powered Exam Routine & Course Search App")
 
 EXCEL_FILE = "Summer_2026_Final_Exam_Draft shared with teachers.xlsm"
+
+# Configure Gemini AI API
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 @st.cache_data
 def load_data():
@@ -24,7 +30,6 @@ if df is not None:
 
     if missing_cols:
         st.error(f"⚠️ These columns are missing in the file: {', '.join(missing_cols)}")
-        st.info(f"Available columns in the file: {', '.join(df.columns.tolist())}")
     else:
         search_input = st.text_input("🔍 Search by Course Name or Code using comma (,) as separator (e.g. CSE110, CSE361.1):").strip()
 
@@ -34,9 +39,7 @@ if df is not None:
             if queries:
                 mask = pd.Series(False, index=df.index)
                 for q in queries:
-                    # Escape special characters like '.' in course codes
                     escaped_q = re.escape(q)
-                    # Pattern ensures the course code doesn't match extra digits at the end
                     pattern = rf"(?i)\b{escaped_q}(?!\d)"
                     
                     mask |= (
@@ -49,6 +52,36 @@ if df is not None:
                 if not results.empty:
                     st.success(f"Total {len(results)} record(s) found:")
                     st.dataframe(results, use_container_width=True)
+
+                    # --- FEATURE 1: AI EXAM CLASH DETECTOR ---
+                    clashes = results[results.duplicated(subset=['Date', 'Starting Time'], keep=False)]
+                    if not clashes.empty:
+                        st.error("🚨 **AI Alert: Exam Clash Detected!** You have multiple exams scheduled on the exact same date and time slot:")
+                        st.dataframe(clashes[['Date', 'Starting Time', 'Ending Time', 'Course Code', 'Course Title']], use_container_width=True)
+
+                    # --- FEATURE 2: AI ROUTINE ANALYZER & ASSISTANT ---
+                    if GEMINI_API_KEY:
+                        st.divider()
+                        st.subheader("🤖 AI Routine Assistant")
+                        if st.button("Generate AI Insights & Summary"):
+                            with st.spinner("AI is analyzing your exam schedule..."):
+                                try:
+                                    model = genai.GenerativeModel('gemini-1.5-flash')
+                                    prompt = f"""
+                                    Analyze this exam routine data for a student and provide a clear, encouraging summary in English:
+                                    Data:
+                                    {results.to_string(index=False)}
+
+                                    Please include:
+                                    1. Total number of exams.
+                                    2. Exam start and end date range.
+                                    3. Highlight any tight schedules or back-to-back exams.
+                                    4. A brief exam preparation tip.
+                                    """
+                                    response = model.generate_content(prompt)
+                                    st.info(response.text)
+                                except Exception as e:
+                                    st.error(f"AI Service Error: {e}")
                 else:
                     st.warning("❌ No matching records found.")
         else:
