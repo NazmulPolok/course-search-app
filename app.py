@@ -69,27 +69,39 @@ if df is not None:
                         st.subheader("🤖 AI Routine Assistant")
                         if st.button("Generate AI Insights & Summary"):
                             with st.spinner("AI is analyzing your exam schedule..."):
-                                try:
-                                    prompt = f"""
-                                    Analyze this exam routine data for a student and provide a clear, encouraging summary in English:
-                                    Data:
-                                    {results.to_string(index=False)}
+                                prompt = f"""
+                                Analyze this exam routine data for a student and provide a clear, encouraging summary in English:
+                                Data:
+                                {results.to_string(index=False)}
 
-                                    Please include:
-                                    1. Total number of exams.
-                                    2. Exam start and end date range.
-                                    3. Highlight any tight schedules or back-to-back exams.
-                                    4. A brief exam preparation tip.
-                                    """
+                                Please include:
+                                1. Total number of exams.
+                                2. Exam start and end date range.
+                                3. Highlight any tight schedules or back-to-back exams.
+                                4. A brief exam preparation tip.
+                                """
+                                
+                                # Try standard models in order
+                                model_list = ['gemini-2.5-flash', 'gemini-2.5-pro']
+                                response = None
+                                last_error = None
 
-                                    response = client.models.generate_content(
-                                        model='gemini-1.5-flash',
-                                        contents=prompt,
-                                    )
+                                for m in model_list:
+                                    try:
+                                        response = client.models.generate_content(
+                                            model=m,
+                                            contents=prompt,
+                                        )
+                                        if response and response.text:
+                                            break
+                                    except Exception as err:
+                                        last_error = err
+                                        continue
+
+                                if response and response.text:
                                     st.info(response.text)
-
-                                except Exception as e:
-                                    st.error(f"AI Service Error: {e}")
+                                else:
+                                    st.error(f"AI Service Error: {last_error}")
                 else:
                     st.warning("❌ No matching records found.")
         else:
