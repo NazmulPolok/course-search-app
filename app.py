@@ -81,27 +81,34 @@ if df is not None:
                                 4. A brief exam preparation tip.
                                 """
                                 
-                                # Try standard models in order
-                                model_list = ['gemini-2.5-flash', 'gemini-2.5-pro']
-                                response = None
-                                last_error = None
-
-                                for m in model_list:
-                                    try:
-                                        response = client.models.generate_content(
-                                            model=m,
-                                            contents=prompt,
-                                        )
-                                        if response and response.text:
+                                # Dynamic Model Selection to prevent 404 deprecation errors
+                                target_model = None
+                                try:
+                                    available_models = [m.name for m in client.models.list()]
+                                    
+                                    # Preference order for models
+                                    for m in available_models:
+                                        if 'flash' in m.lower() and 'generateContent' in getattr(m, 'supported_generation_methods', ['generateContent']):
+                                            target_model = m
                                             break
-                                    except Exception as err:
-                                        last_error = err
-                                        continue
+                                            
+                                    if not target_model and available_models:
+                                        target_model = available_models[0]
+                                except Exception:
+                                    # Fallback candidates if list API fails
+                                    target_model = 'gemini-3.5-flash'
 
-                                if response and response.text:
-                                    st.info(response.text)
-                                else:
-                                    st.error(f"AI Service Error: {last_error}")
+                                try:
+                                    response = client.models.generate_content(
+                                        model=target_model,
+                                        contents=prompt,
+                                    )
+                                    if response and response.text:
+                                        st.info(response.text)
+                                    else:
+                                        st.error("AI returned an empty response.")
+                                except Exception as err:
+                                    st.error(f"AI Service Error ({target_model}): {err}")
                 else:
                     st.warning("❌ No matching records found.")
         else:
