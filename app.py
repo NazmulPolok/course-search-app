@@ -161,11 +161,11 @@ with tab1:
                             st.error("🚨 Exam Clash Detected!")
                             st.dataframe(clashes[['Date', 'Starting Time', 'Ending Time', 'Course Code', 'Course Title']], use_container_width=True)
 
-                        # AI Summary
-                        if client:
-                            st.divider()
-                            st.subheader("🤖 AI Routine Assistant")
-                            if st.button("Generate AI Insights & Summary"):
+                        # --- AI ROUTINE ASSISTANT SECTION ---
+                        st.divider()
+                        st.subheader("🤖 AI Routine Assistant")
+                        if st.button("Generate AI Insights & Summary"):
+                            if client:
                                 with st.spinner("AI analyzing..."):
                                     prompt = f"Analyze exam routine and summarize:\n{results.to_string(index=False)}"
                                     try:
@@ -175,8 +175,12 @@ with tab1:
                                         )
                                         if interaction and interaction.output_text:
                                             st.info(interaction.output_text)
+                                        else:
+                                            st.error("AI returned empty response.")
                                     except Exception as err:
                                         st.error(f"AI Error: {err}")
+                            else:
+                                st.warning("⚠️ GEMINI_API_KEY is not configured in Streamlit Secrets!")
                     else:
                         st.warning("❌ No matching records found.")
     else:
