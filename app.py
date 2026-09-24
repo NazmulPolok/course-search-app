@@ -18,7 +18,10 @@ st.title("📚 Student Exam Routine & Seat Plan Portal")
 
 EXCEL_FILE = "Summer_2026_Final_Exam_Draft shared with teachers.xlsm"
 SEAT_PLAN_PDF = "seat_plan.pdf"
-ADMIN_PASSWORD = "admin123"
+
+# Admin Credentials
+ADMIN_EMAIL = "nazmulpolok80@gmail.com"
+ADMIN_PASSWORD = "adminpasspolok76"
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO", "")
@@ -68,10 +71,14 @@ def load_data():
 
 # ==================== SIDEBAR ADMIN PANEL ====================
 st.sidebar.title("🔐 Admin Panel")
-admin_pass = st.sidebar.text_input("Enter Admin Password:", type="password")
 
-if admin_pass == ADMIN_PASSWORD:
-    st.sidebar.success("Logged In!")
+# Admin Authentication Input Fields
+admin_email_input = st.sidebar.text_input("Enter Admin Email:")
+admin_pass_input = st.sidebar.text_input("Enter Admin Password:", type="password")
+
+# Validation logic
+if admin_email_input.strip().lower() == ADMIN_EMAIL.lower() and admin_pass_input == ADMIN_PASSWORD:
+    st.sidebar.success("Logged In as Admin!")
     st.sidebar.subheader("📤 Upload to GitHub Repo")
     
     # 1. Routine File Upload
@@ -98,6 +105,8 @@ if admin_pass == ADMIN_PASSWORD:
                 st.rerun()
             else:
                 st.sidebar.error(msg)
+elif admin_email_input or admin_pass_input:
+    st.sidebar.error("❌ Invalid Email or Password")
 
 # ==================== MAIN SECTION ====================
 tab1, tab2 = st.tabs(["🔍 Search Exam Routine", "🪑 Search Seat Plan"])
