@@ -33,7 +33,7 @@ def load_data():
 st.sidebar.title("🔐 Admin Panel")
 admin_pass = st.sidebar.text_input("Enter Admin Password:", type="password")
 
-if admin_pass == ADMIN_PASSWORD:
+if admin_pass == ADMIN_Polok76:
     st.sidebar.success("Admin Logged In!")
     
     st.sidebar.subheader("📤 Update Files")
