@@ -7,7 +7,7 @@ import requests
 import pypdf
 from google import genai
 
-# Page config with auto-collapsed sidebar
+# Explicitly collapsing sidebar on initial app load
 st.set_page_config(
     page_title="AI Routine & Seat Plan Portal",
     layout="wide",
@@ -19,7 +19,7 @@ st.title("📚 Student Exam Routine & Seat Plan Portal")
 EXCEL_FILE = "Summer_2026_Final_Exam_Draft shared with teachers.xlsm"
 SEAT_PLAN_PDF = "seat_plan.pdf"
 
-# Admin Credentials
+# Updated Admin Credentials
 ADMIN_EMAIL = "nazmulpolok80@gmail.com"
 ADMIN_PASSWORD = "adminpasspolok76"
 
@@ -72,13 +72,28 @@ def load_data():
 # ==================== SIDEBAR ADMIN PANEL ====================
 st.sidebar.title("🔐 Admin Panel")
 
-# Admin Authentication Input Fields
-admin_email_input = st.sidebar.text_input("Enter Admin Email:")
-admin_pass_input = st.sidebar.text_input("Enter Admin Password:", type="password")
+# Session state initialization for login status
+if "admin_logged_in" not in st.session_state:
+    st.session_state.admin_logged_in = False
 
-# Validation logic
-if admin_email_input.strip().lower() == ADMIN_EMAIL.lower() and admin_pass_input == ADMIN_PASSWORD:
-    st.sidebar.success("Logged In as Admin!")
+if not st.session_state.admin_logged_in:
+    admin_email_input = st.sidebar.text_input("Enter Admin Email:")
+    admin_pass_input = st.sidebar.text_input("Enter Admin Password:", type="password")
+    login_btn = st.sidebar.button("Login")
+
+    if login_btn:
+        if admin_email_input.strip().lower() == ADMIN_EMAIL.lower() and admin_pass_input == ADMIN_PASSWORD:
+            st.session_state.admin_logged_in = True
+            st.sidebar.success("Logged In as Admin!")
+            st.rerun()
+        else:
+            st.sidebar.error("❌ Invalid Email or Password")
+else:
+    st.sidebar.success(f"Logged In: {ADMIN_EMAIL}")
+    if st.sidebar.button("Logout"):
+        st.session_state.admin_logged_in = False
+        st.rerun()
+        
     st.sidebar.subheader("📤 Upload to GitHub Repo")
     
     # 1. Routine File Upload
@@ -105,8 +120,6 @@ if admin_email_input.strip().lower() == ADMIN_EMAIL.lower() and admin_pass_input
                 st.rerun()
             else:
                 st.sidebar.error(msg)
-elif admin_email_input or admin_pass_input:
-    st.sidebar.error("❌ Invalid Email or Password")
 
 # ==================== MAIN SECTION ====================
 tab1, tab2 = st.tabs(["🔍 Search Exam Routine", "🪑 Search Seat Plan"])
