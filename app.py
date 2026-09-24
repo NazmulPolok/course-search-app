@@ -2,15 +2,26 @@ import streamlit as st
 import pandas as pd
 import os
 import re
+import base64
+import requests
 import pypdf
 from google import genai
 
-st.set_page_config(page_title="AI Routine & Seat Plan Portal", layout="wide")
+# Page config with auto-collapsed sidebar
+st.set_page_config(
+    page_title="AI Routine & Seat Plan Portal",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 st.title("📚 Student Exam Routine & Seat Plan Portal")
 
 EXCEL_FILE = "Summer_2026_Final_Exam_Draft shared with teachers.xlsm"
 SEAT_PLAN_PDF = "seat_plan.pdf"
-ADMIN_PASSWORD = "admin123"  # Ekhane apnar pochondo moto password din
+ADMIN_PASSWORD = "admin123"
+
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
+GITHUB_REPO = st.secrets.get("GITHUB_REPO", "")
 
 # Configure Gemini Client
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
@@ -18,8 +29,34 @@ client = None
 if GEMINI_API_KEY:
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
-    except Exception as e:
+    except Exception:
         pass
+
+def upload_to_github(file_bytes, target_path, commit_message):
+    """Directly uploads/updates file in GitHub Repository via API"""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return False, "GitHub Token or Repo Name missing in Secrets!"
+    
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{target_path}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    
+    # Check if file exists to get current sha
+    res = requests.get(url, headers=headers)
+    sha = res.json().get("sha") if res.status_code == 200 else None
+    
+    encoded_content = base64.b64encode(file_bytes).decode("utf-8")
+    payload = {
+        "message": commit_message,
+        "content": encoded_content
+    }
+    if sha:
+        payload["sha"] = sha
+        
+    put_res = requests.put(url, headers=headers, json=payload)
+    if put_res.status_code in [200, 201]:
+        return True, "Successfully committed to GitHub!"
+    else:
+        return False, f"GitHub Error: {put_res.json().get('message')}"
 
 @st.cache_data
 def load_data():
@@ -29,35 +66,40 @@ def load_data():
         return df
     return None
 
-# ==================== SIDEBAR: ADMIN PANEL ====================
+# ==================== SIDEBAR ADMIN PANEL ====================
 st.sidebar.title("🔐 Admin Panel")
 admin_pass = st.sidebar.text_input("Enter Admin Password:", type="password")
 
 if admin_pass == ADMIN_PASSWORD:
-    st.sidebar.success("Admin Logged In!")
+    st.sidebar.success("Logged In!")
+    st.sidebar.subheader("📤 Upload to GitHub Repo")
     
-    st.sidebar.subheader("📤 Update Files")
-    
-    # 1. Update Routine Excel File
-    uploaded_excel = st.sidebar.file_drop_target if hasattr(st.sidebar, "file_drop_target") else st.sidebar.file_uploader("Upload New Exam Routine (.xlsx/.xlsm)", type=["xlsx", "xlsm"])
-    if uploaded_excel is not None:
-        if st.sidebar.button("Save New Routine"):
-            with open(EXCEL_FILE, "wb") as f:
-                f.write(uploaded_excel.getbuffer())
-            st.cache_data.clear()
-            st.sidebar.success("✅ Exam Routine Updated Successfully!")
-            st.rerun()
+    # 1. Routine File Upload
+    uploaded_excel = st.sidebar.file_uploader("New Routine (.xlsx/.xlsm)", type=["xlsx", "xlsm"])
+    if uploaded_excel and st.sidebar.button("Push Routine to GitHub"):
+        with st.sidebar.spinner("Pushing to GitHub..."):
+            file_bytes = uploaded_excel.getbuffer().tobytes()
+            success, msg = upload_to_github(file_bytes, EXCEL_FILE, "Update Exam Routine Excel via Admin")
+            if success:
+                st.sidebar.success(msg)
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.sidebar.error(msg)
 
-    # 2. Update Seat Plan PDF File
-    uploaded_pdf = st.sidebar.file_uploader("Upload New Seat Plan (.pdf)", type=["pdf"])
-    if uploaded_pdf is not None:
-        if st.sidebar.button("Save New Seat Plan"):
-            with open(SEAT_PLAN_PDF, "wb") as f:
-                f.write(uploaded_pdf.getbuffer())
-            st.sidebar.success("✅ Seat Plan PDF Updated Successfully!")
-            st.rerun()
+    # 2. Seat Plan PDF Upload
+    uploaded_pdf = st.sidebar.file_uploader("New Seat Plan (.pdf)", type=["pdf"])
+    if uploaded_pdf and st.sidebar.button("Push Seat Plan to GitHub"):
+        with st.sidebar.spinner("Pushing to GitHub..."):
+            file_bytes = uploaded_pdf.getbuffer().tobytes()
+            success, msg = upload_to_github(file_bytes, SEAT_PLAN_PDF, "Update Seat Plan PDF via Admin")
+            if success:
+                st.sidebar.success(msg)
+                st.rerun()
+            else:
+                st.sidebar.error(msg)
 
-# ==================== MAIN SECTION: TABS ====================
+# ==================== MAIN SECTION ====================
 tab1, tab2 = st.tabs(["🔍 Search Exam Routine", "🪑 Search Seat Plan"])
 
 # ---------------- TAB 1: EXAM ROUTINE ----------------
@@ -68,9 +110,9 @@ with tab1:
         missing_cols = [col for col in required_cols if col not in df.columns]
 
         if missing_cols:
-            st.error(f"⚠️ These columns are missing in the file: {', '.join(missing_cols)}")
+            st.error(f"⚠️ Missing columns: {', '.join(missing_cols)}")
         else:
-            search_input = st.text_input("🔍 Search by Course Name or Code (comma separated):").strip()
+            search_input = st.text_input("🔍 Search Course Code/Name (comma separated):").strip()
 
             if search_input:
                 queries = [q.strip() for q in search_input.split(",") if q.strip()]
@@ -91,19 +133,19 @@ with tab1:
                         st.success(f"Total {len(results)} record(s) found:")
                         st.dataframe(results, use_container_width=True)
 
-                        # Clash Detector
+                        # Clash Detection
                         clashes = results[results.duplicated(subset=['Date', 'Starting Time'], keep=False)]
                         if not clashes.empty:
-                            st.error("🚨 **Exam Clash Detected!** Multiple exams on same date & time slot:")
+                            st.error("🚨 Exam Clash Detected!")
                             st.dataframe(clashes[['Date', 'Starting Time', 'Ending Time', 'Course Code', 'Course Title']], use_container_width=True)
 
-                        # AI Routine Assistant
+                        # AI Summary
                         if client:
                             st.divider()
                             st.subheader("🤖 AI Routine Assistant")
                             if st.button("Generate AI Insights & Summary"):
-                                with st.spinner("AI is analyzing schedule..."):
-                                    prompt = f"Analyze this exam routine for a student and provide a concise summary:\nData:\n{results.to_string(index=False)}"
+                                with st.spinner("AI analyzing..."):
+                                    prompt = f"Analyze exam routine and summarize:\n{results.to_string(index=False)}"
                                     try:
                                         interaction = client.interactions.create(
                                             model="gemini-3.6-flash",
@@ -116,13 +158,13 @@ with tab1:
                     else:
                         st.warning("❌ No matching records found.")
     else:
-        st.error(f"⚠️ Excel routine file not found! Upload it via Admin Panel.")
+        st.error(f"⚠️ Excel routine file '{EXCEL_FILE}' not found.")
 
 # ---------------- TAB 2: SEAT PLAN PDF ----------------
 with tab2:
     st.subheader("🪑 Find Your Exam Seat")
     if os.path.exists(SEAT_PLAN_PDF):
-        seat_query = st.text_input("🔍 Enter Student ID (13-digit) or Student Name:").strip()
+        seat_query = st.text_input("🔍 Enter Student ID (13-digit) or Name:").strip()
         
         if seat_query:
             if st.button("Search Seat Location"):
@@ -145,4 +187,4 @@ with tab2:
                     else:
                         st.warning("❌ No seat record found for this ID/Name.")
     else:
-        st.info("ℹ️ Seat plan PDF is not available yet. Admin can upload it from the left sidebar.")
+        st.info("ℹ️ Seat plan PDF is not available yet.")
